@@ -21,6 +21,7 @@ Run it on your own computer:
     streamlit run app.py
 """
 
+import random
 from datetime import timedelta
 from pathlib import Path
 
@@ -31,7 +32,49 @@ import streamlit as st
 # =============================================================================
 # 1. PAGE SETUP  (must be the first Streamlit command in the file)
 # =============================================================================
-st.set_page_config(page_title="LuLu UAE Sales Dashboard", page_icon="🛒", layout="wide")
+st.set_page_config(page_title="LuLu UAE Sales Dashboard", page_icon="🌌", layout="wide")
+
+# ---- STARRY NIGHT THEME -----------------------------------------------------
+# Stars are tiny boxes whose box-shadows draw hundreds of dots; CSS animations make them twinkle.
+def star_field(count, seed):
+    rnd = random.Random(seed)
+    colours = ["#ffffff", "#ffe3e6", "#d6e4ff"]
+    return ",".join(f"{rnd.randint(0, 100)}vw {rnd.randint(0, 100)}vh {rnd.choice(colours)}" for _ in range(count))
+
+
+THEME_CSS = f"""
+<style>
+html, body {{ background: radial-gradient(circle at 88% 10%, rgba(255,240,200,.28) 0, rgba(255,240,200,0) 7%),
+              linear-gradient(180deg, #03050f 0%, #0a1030 55%, #1d1245 100%) fixed !important; }}
+.stApp, [data-testid="stAppViewContainer"], [data-testid="stHeader"] {{ background: transparent !important; }}
+[data-testid="stSidebar"] {{ background: rgba(5,8,24,.72) !important; backdrop-filter: blur(8px); }}
+.block-container {{ position: relative; z-index: 1; }}
+.stars {{ position: fixed; top: 0; left: 0; border-radius: 50%; pointer-events: none; z-index: 0; }}
+.s1 {{ width: 1px; height: 1px; box-shadow: {star_field(160, 1)}; animation: twinkle 4s ease-in-out infinite; }}
+.s2 {{ width: 2px; height: 2px; box-shadow: {star_field(60, 2)}; animation: twinkle 6s ease-in-out 1s infinite; }}
+.s3 {{ width: 3px; height: 3px; box-shadow: {star_field(18, 3)}; animation: twinkle 3s ease-in-out .5s infinite; }}
+.shoot {{ position: fixed; top: 8vh; left: 85vw; width: 140px; height: 2px; opacity: 0; pointer-events: none; z-index: 0;
+         background: linear-gradient(90deg, #fff, transparent); animation: shoot 11s ease-in infinite; }}
+@keyframes twinkle {{ 0%,100% {{ opacity: .95 }} 50% {{ opacity: .25 }} }}
+@keyframes shoot {{ 0% {{ opacity: 0; transform: translate(0,0) rotate(35deg) }} 2% {{ opacity: 1 }}
+                   9% {{ opacity: 0; transform: translate(-55vw,38vh) rotate(35deg) }} 100% {{ opacity: 0 }} }}
+@keyframes rise {{ from {{ opacity: 0; transform: translateY(22px) }} to {{ opacity: 1; transform: none }} }}
+@keyframes fade {{ from {{ opacity: 0 }} to {{ opacity: 1 }} }}
+h1, h2, h3, h4 {{ color: #ff4d5a !important; text-shadow: 0 0 18px rgba(255,77,90,.45); }}
+p, label, li, [data-testid="stCaptionContainer"] {{ color: #fff; }}
+[data-testid="stMetricValue"] {{ color: #ff4d5a !important; }}
+[data-testid="stMetricLabel"] p {{ color: #fff !important; }}
+[data-testid="stMain"] .block-container > div {{ animation: rise .6s ease both; }}
+[data-testid="stVerticalBlockBorderWrapper"] {{ background: rgba(12,18,48,.55); backdrop-filter: blur(6px);
+    border: 1px solid rgba(255,255,255,.16) !important; border-radius: 14px; transition: box-shadow .3s, border-color .3s; }}
+[data-testid="stVerticalBlockBorderWrapper"]:hover {{ border-color: rgba(255,77,90,.6) !important; box-shadow: 0 6px 28px rgba(255,77,90,.22); }}
+[data-testid="stPlotlyChart"], [data-testid="stDataFrame"] {{ animation: fade .8s ease both; }}
+.stButton button, [data-testid="stPopover"] button {{ border: 1px solid #ff4d5a; color: #fff; transition: all .25s; }}
+.stButton button:hover, [data-testid="stPopover"] button:hover {{ background: #ff4d5a; color: #fff; transform: scale(1.05); }}
+</style>
+<div class="stars s1"></div><div class="stars s2"></div><div class="stars s3"></div><div class="shoot"></div>
+"""
+st.markdown(THEME_CSS, unsafe_allow_html=True)
 
 # =============================================================================
 # 2. SETTINGS USED ACROSS THE APP
@@ -53,7 +96,7 @@ CATEGORY_COLORS = {
     "Fashion": "#C2408A",
     "Home Decor": "#2A9D8F",
     "Electronics": "#3A6FD8",
-    "Furniture": "#8C5A3C",
+    "Furniture": "#D9955F",
 }
 OTHER_COLORS = ["#3A6FD8", "#2A9D8F", "#E0A526", "#C2408A"]   # for charts not split by category
 CHART_HEIGHT = 380                                          # same height for every chart
@@ -77,7 +120,9 @@ METRIC_COLUMNS = {
 #    so Streamlit re-reads the file every 5 seconds and picks up new rows.
 @st.cache_data
 def load_data():
-    return pd.read_csv(DATA_FILE, parse_dates=["Timestamp", "Date"])
+    if DATA_FILE.exists():
+        return pd.read_csv(DATA_FILE, parse_dates=["Timestamp", "Date"])
+    return pd.read_excel(DATA_FILE.with_name("lulu_sales_data_csv.xlsx"))   # fallback: the Excel file
 
 
 # =============================================================================
@@ -175,6 +220,8 @@ def no_data_message():
 def style(fig):
     """Give every Plotly chart the same size, margins and legend position."""
     fig.update_layout(
+        template="plotly_dark", paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
+        font=dict(color="#ffffff"), transition=dict(duration=700, easing="cubic-in-out"),
         height=CHART_HEIGHT,
         margin=dict(l=0, r=0, t=10, b=0),
         legend=dict(orientation="h", yanchor="bottom", y=1.02, x=0, title_text=""),
@@ -262,6 +309,7 @@ def sales_by_category_card():
         with card_header("Sales by category"):
             emirate = local_select("Emirate", ["All emirates"] + emirates_in(data), key="cat_emirate")
             metric = st.radio("Measure", list(METRIC_COLUMNS), key="cat_metric")
+        view = st.segmented_control("View as", ["Bar", "Donut", "Treemap"], default="Bar", required=True, key="cat_view")
 
         if emirate != "All emirates":
             data = data[data["Emirate"] == emirate]
@@ -270,10 +318,21 @@ def sales_by_category_card():
             return no_data_message()
 
         summary = summarise(data, "Category", metric)
-        fig = px.bar(summary, x=metric, y="Category", orientation="h", text_auto=".3s",
-                     color="Category", color_discrete_map=CATEGORY_COLORS)
+        if view != "Bar" and (summary[metric] <= 0).any():
+            view = "Bar"   # pies and treemaps cannot show zero or negative values
+        if view == "Donut":
+            fig = px.pie(summary, names="Category", values=metric, hole=0.55, color="Category",
+                         color_discrete_map=CATEGORY_COLORS)
+            fig.update_traces(textinfo="percent+label")
+        elif view == "Treemap":
+            fig = px.treemap(summary, path=["Category"], values=metric, color="Category",
+                             color_discrete_map=CATEGORY_COLORS)
+            fig.update_traces(textinfo="label+percent root")
+        else:
+            fig = px.bar(summary, x=metric, y="Category", orientation="h", text_auto=".3s",
+                         color="Category", color_discrete_map=CATEGORY_COLORS)
+            fig.update_yaxes(categoryorder="total ascending")   # biggest bar at the top
         fig.update_layout(showlegend=False, yaxis_title=None)
-        fig.update_yaxes(categoryorder="total ascending")   # biggest bar at the top
         st.plotly_chart(style(fig), key="chart_category")
 
 
@@ -327,6 +386,7 @@ def trend_card():
                               key="trend_metric")
             split = st.toggle("One line per category", value=True, key="trend_split")
             show_seasons = st.toggle("Shade festive seasons", value=True, key="trend_seasons")
+        kind = st.segmented_control("Chart type", ["Line", "Area", "Bar"], default="Line", required=True, key="trend_kind")
 
         if chosen:
             data = data[data["Category"].isin(chosen)]
@@ -339,9 +399,13 @@ def trend_card():
         data = data.assign(Period=data["Date"].dt.to_period(freq).dt.start_time)
 
         summary = summarise(data, ["Period", "Category"] if split else "Period", metric)
-        fig = px.line(summary, x="Period", y=metric, markers=grain != "Daily",
-                      color="Category" if split else None, category_orders={"Category": CATEGORIES},
-                      color_discrete_map=CATEGORY_COLORS, color_discrete_sequence=["#34495E"])
+        args = dict(x="Period", y=metric, color="Category" if split else None,
+                    category_orders={"Category": CATEGORIES}, color_discrete_map=CATEGORY_COLORS,
+                    color_discrete_sequence=["#ff4d5a"])
+        if kind == "Line":
+            fig = px.line(summary, markers=grain != "Daily", **args)
+        else:
+            fig = {"Area": px.area, "Bar": px.bar}[kind](summary, **args)
         fig.update_layout(xaxis_title=None)
 
         if show_seasons:
@@ -442,7 +506,7 @@ def customer_card():
         fig = px.bar(summary, x="Age_Group", y=metric, color="Gender", barmode="group",
                      text_auto=".2f" if metric.startswith("Average") else ".3s",
                      category_orders={"Age_Group": AGE_GROUPS},
-                     color_discrete_map={"Female": "#4C5B7A", "Male": "#A3B4CC"},
+                     color_discrete_map={"Female": "#ff4d5a", "Male": "#f2f2f7"},
                      labels={"Age_Group": "Age group"})
         st.plotly_chart(style(fig), key="chart_customers")
 
@@ -515,55 +579,195 @@ def data_explorer_card():
 
 
 # =============================================================================
-# 6. PAGE LAYOUT  (this is the part that actually draws the page, top to bottom)
+# 5b. NEW CARDS: insights, store leaderboard, store spotlight, time machine
+# =============================================================================
+@st.fragment
+def insights_card():
+    data = get_global_data()
+    net = data["Net_Sales_AED"].sum()
+    cat = data.groupby("Category")["Net_Sales_AED"].sum().sort_values(ascending=False)
+    em = data.groupby("Emirate")["Net_Sales_AED"].sum().sort_values(ascending=False)
+    store = data.groupby("Store_Name")["Net_Sales_AED"].sum().sort_values(ascending=False)
+    month = data.groupby(data["Date"].dt.to_period("M"))["Net_Sales_AED"].sum()
+    weekend = data.loc[data["Is_Weekend"] == "Yes", "Net_Sales_AED"].sum() / net * 100
+    online = data.loc[data["Sales_Channel"] != "In-store", "Net_Sales_AED"].sum() / net * 100
+    facts = [
+        f"{cat.index[0]} leads with {cat.iloc[0] / net * 100:.0f}% of all sales.",
+        f"{em.index[0]} is the top emirate, bringing in {aed(em.iloc[0])}.",
+        f"{store.index[0]} is the star store with {aed(store.iloc[0])}.",
+        f"{month.idxmax().strftime('%B %Y')} was the best month at {aed(month.max())}.",
+        f"Weekends make up {weekend:.0f}% of sales. Online and click & collect make up {online:.0f}%.",
+    ]
+    st.session_state.setdefault("fact_i", 0)
+    with st.container(border=True):
+        text, b1, b2 = st.columns([5, 1.2, 1.4], vertical_alignment="center")
+        text.markdown(f"### ✨ {facts[st.session_state['fact_i'] % len(facts)]}")
+        b1.button("Surprise me", icon=":material/auto_awesome:", width="stretch",
+                  on_click=lambda: st.session_state.update(fact_i=random.randrange(len(facts))))
+        if b2.button("Best month!", icon=":material/celebration:", width="stretch"):
+            st.balloons()
+            st.toast(f"🎉 {month.idxmax().strftime('%B %Y')}: {aed(month.max())}")
+
+
+@st.fragment
+def store_leaderboard_card():
+    data = get_global_data()
+    with st.container(border=True):
+        with card_header("Store leaderboard"):
+            metric = st.radio("Measure", list(METRIC_COLUMNS), key="lb_metric")
+            top_n = st.slider("Stores to show", 3, 17, 10, key="lb_n")
+        show_active_filters(metric, f"top {top_n}")
+        s = summarise(data, ["Store_Name", "Emirate"], metric).sort_values(metric, ascending=False).head(top_n)
+        medals = ["🥇 ", "🥈 ", "🥉 "]
+        s["Store"] = [(medals[i] if i < 3 else "") + n for i, n in enumerate(s["Store_Name"])]
+        fig = px.bar(s, x=metric, y="Store", orientation="h", color="Emirate", text_auto=".3s")
+        fig.update_yaxes(categoryorder="total ascending", title=None)
+        st.plotly_chart(style(fig), key="chart_leaderboard")
+
+
+@st.fragment
+def store_spotlight_card():
+    data = get_global_data()
+    ranking = data.groupby("Store_Name")["Net_Sales_AED"].sum().sort_values(ascending=False)
+    with st.container(border=True):
+        st.markdown("#### 🔦 Store spotlight")
+        store = local_select("Pick a store", sorted(ranking.index), key="spot_store")
+        d = data[data["Store_Name"] == store]
+        st.caption(f"📍 {store} · {d['Emirate'].iloc[0]} · {d['Store_Format'].iloc[0]} · "
+                   f"rank #{list(ranking.index).index(store) + 1} of {len(ranking)} by net sales")
+        a, b, c = st.columns(3)
+        a.metric("Net sales", aed(d["Net_Sales_AED"].sum()))
+        b.metric("Transactions", f"{len(d):,}")
+        c.metric("Avg. rating", f"{d['Customer_Rating'].mean():.2f} ⭐")
+        monthly = d.groupby(d["Date"].dt.to_period("M").dt.start_time)["Net_Sales_AED"].sum().reset_index()
+        fig = px.area(monthly, x="Date", y="Net_Sales_AED", markers=True, color_discrete_sequence=["#ff4d5a"],
+                      labels={"Net_Sales_AED": "Net sales (AED)", "Date": ""})
+        st.plotly_chart(style(fig).update_layout(height=250), key="chart_spotlight")
+
+
+@st.fragment
+def time_machine_card():
+    data = get_global_data()
+    with st.container(border=True):
+        with card_header("Time machine: press ▶ and watch sales move month by month", wide=True):
+            by = st.radio("Race by", ["Category", "Emirate", "Store_Name"], key="tm_by",
+                          format_func=lambda x: x.replace("_", " "))
+            metric = st.radio("Measure", list(METRIC_COLUMNS), key="tm_metric")
+        show_active_filters(by.replace("_", " "), metric)
+        data = data.assign(Month=data["Date"].dt.strftime("%Y-%m"))
+        s = summarise(data, [by, "Month"], metric).set_index([by, "Month"])[metric]
+        full = pd.MultiIndex.from_product([sorted(data[by].unique()), sorted(data["Month"].unique())], names=[by, "Month"])
+        s = s.reindex(full, fill_value=0).reset_index()
+        fig = px.bar(s, x=metric, y=by, orientation="h", color=by, animation_frame="Month", text_auto=".3s",
+                     range_x=[min(0, s[metric].min()), s[metric].max() * 1.15],
+                     color_discrete_map=CATEGORY_COLORS if by == "Category" else None)
+        fig.update_yaxes(categoryorder="total ascending", title=None)
+        fig.update_layout(showlegend=False)
+        if fig.layout.updatemenus:   # slow the play button down so the motion is easy to follow
+            play = fig.layout.updatemenus[0].buttons[0].args[1]
+            play["frame"]["duration"], play["transition"]["duration"] = 900, 600
+        st.plotly_chart(style(fig).update_layout(height=520), key="chart_time_machine")
+
+
+# =============================================================================
+# 6. PAGES + LAYOUT
 # =============================================================================
 df = load_data()
 first_day, last_day = df["Date"].min().date(), df["Date"].max().date()
 
-st.title("🛒 LuLu UAE Sales Dashboard")
-st.caption(f"Synthetic data for teaching, not real LuLu figures. {len(df):,} transactions "
-           f"from {first_day:%d %b %Y} to {last_day:%d %b %Y}.")
 
-# ---- Global filters (they change every chart) ----
-with st.container(border=True):
-    date_col, emirate_col = st.columns([1, 2])
-    date_col.date_input("Date range", value=(first_day, last_day), min_value=first_day,
-                        max_value=last_day, format="DD/MM/YYYY", key="global_dates")
-    emirate_col.multiselect("Emirates", EMIRATES, placeholder="All emirates", key="global_emirates")
-    st.caption("These two filters change every chart. Each chart's Filters button changes only that chart.")
+def page_header(title, blurb):
+    st.title(title)
+    st.caption(blurb)
 
-# While someone is picking dates, the date box holds just the first date.
-# Wait until both dates are chosen before drawing anything.
+
+def overview_page():
+    page_header("🌌 Overview", "The big picture. Slice everything with the filters in the sidebar.")
+    insights_card()
+    kpi_row()
+    trend_card()
+    sales_by_category_card()
+
+
+def places_page():
+    page_header("🗺️ Emirates & stores", "Where the sales happen: by emirate, by store, by location.")
+    emirate_heatmap_card()
+    left, right = st.columns(2)
+    with left:
+        store_leaderboard_card()
+    with right:
+        store_spotlight_card()
+
+
+def time_page():
+    page_header("⏳ Time machine", "Watch the year unfold. Press play, or drag the slider to a month.")
+    time_machine_card()
+
+
+def products_page():
+    page_header("🛍️ Products & promotions", "What sells, and what discounts do to profit.")
+    left, right = st.columns(2)
+    with left:
+        promotion_card()
+    with right:
+        top_products_card()
+
+
+def customers_page():
+    page_header("👥 Customers", "Who is buying, and how they shop and pay.")
+    left, right = st.columns(2)
+    with left:
+        customer_card()
+    with right:
+        mix_card()
+
+
+def data_page():
+    page_header("📄 Data explorer", "Every transaction behind the charts. Download what you see.")
+    data_explorer_card()
+
+
+pg = st.navigation([
+    st.Page(overview_page, title="Overview", icon="🌌", url_path="overview", default=True),
+    st.Page(places_page, title="Emirates & stores", icon="🗺️", url_path="places"),
+    st.Page(time_page, title="Time machine", icon="⏳", url_path="time-machine"),
+    st.Page(products_page, title="Products & promos", icon="🛍️", url_path="products"),
+    st.Page(customers_page, title="Customers", icon="👥", url_path="customers"),
+    st.Page(data_page, title="Data explorer", icon="📄", url_path="data"),
+])
+
+
+def quick_range():
+    days = {"Last 30 days": 30, "Last 90 days": 90}.get(st.session_state.get("quick"))
+    st.session_state["global_dates"] = (first_day, last_day) if days is None else (
+        max(first_day, last_day - timedelta(days=days - 1)), last_day)
+
+
+def reset_filters():
+    st.session_state.update(global_dates=(first_day, last_day), global_emirates=[], quick=None)
+
+
+# ---- Global filters live in the sidebar so they follow you from page to page ----
+with st.sidebar:
+    st.markdown("### 🔭 Filters")
+    st.date_input("Date range", value=(first_day, last_day), min_value=first_day,
+                  max_value=last_day, format="DD/MM/YYYY", key="global_dates")
+    st.segmented_control("Quick range", ["Last 30 days", "Last 90 days", "Full period"],
+                         key="quick", on_change=quick_range)
+    st.multiselect("Emirates", EMIRATES, placeholder="All emirates", key="global_emirates")
+    st.button("Reset filters", icon=":material/restart_alt:", on_click=reset_filters, width="stretch")
+    st.caption(f"Synthetic data for teaching. {len(df):,} transactions, "
+               f"{first_day:%d %b %Y} to {last_day:%d %b %Y}.")
+
+if "welcomed" not in st.session_state:
+    st.session_state["welcomed"] = True
+    st.toast("Welcome, stargazer! Try the Time machine page ✨")
+
 if len(st.session_state["global_dates"]) != 2:
     st.info("Pick an end date to finish setting the date range.")
     st.stop()
-
 if get_global_data().empty:
-    st.warning("No transactions in this date range and emirate selection. Widen the global filters.")
+    st.warning("No transactions in this date range and emirate selection. Widen the filters in the sidebar.")
     st.stop()
 
-# ---- KPIs ----
-kpi_row()
-
-# ---- Charts: two per row, wide charts get the full row ----
-left, right = st.columns(2)
-with left:
-    sales_by_category_card()
-with right:
-    emirate_heatmap_card()
-
-trend_card()
-
-left, right = st.columns(2)
-with left:
-    mix_card()
-with right:
-    promotion_card()
-
-left, right = st.columns(2)
-with left:
-    customer_card()
-with right:
-    top_products_card()
-
-data_explorer_card()
+pg.run()
